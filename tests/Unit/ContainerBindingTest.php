@@ -116,6 +116,29 @@ final class ContainerBindingTest extends TestCase
 			$service->repository()
 		);
 	}
+	
+	public function test_container_returns_same_instance_for_singleton(): void
+	{
+		$container = new Container();
+
+		$container->singleton(
+			ExampleService::class,
+			ExampleService::class
+		);
+
+		$first = $container->make(
+			ExampleService::class
+		);
+
+		$second = $container->make(
+			ExampleService::class
+		);
+
+		self::assertSame(
+			$first,
+			$second
+		);
+	}
 }
 
 final class ExampleService
