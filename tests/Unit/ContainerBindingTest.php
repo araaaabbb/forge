@@ -139,6 +139,68 @@ final class ContainerBindingTest extends TestCase
 			$second
 		);
 	}
+	
+	public function test_container_can_register_existing_instance(): void
+	{
+		$container = new Container();
+
+		$service = new ExampleService();
+
+		$container->instance(
+			ExampleService::class,
+			$service
+		);
+
+		$resolved = $container->make(
+			ExampleService::class
+		);
+
+		self::assertSame(
+			$service,
+			$resolved
+		);
+	}
+	
+	public function test_container_has_returns_true_for_registered_instance(): void
+	{
+		$container = new Container();
+
+		$service = new ExampleService();
+
+		$container->instance(
+			ExampleService::class,
+			$service
+		);
+
+		self::assertTrue(
+			$container->has(
+				ExampleService::class
+			)
+		);
+	}
+	
+	public function test_container_creates_new_instance_for_normal_binding(): void
+	{
+		$container = new Container();
+
+		$container->bind(
+			ExampleService::class,
+			ExampleService::class
+		);
+
+		$first = $container->make(
+			ExampleService::class
+		);
+
+		$second = $container->make(
+			ExampleService::class
+		);
+
+		self::assertNotSame(
+			$first,
+			$second
+		);
+	}
 }
 
 final class ExampleService

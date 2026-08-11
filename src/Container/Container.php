@@ -33,14 +33,11 @@ final class Container implements ContainerInterface
     }
 
     public function instance(
-        string $abstract,
-        mixed $instance
-    ): void {
-        $this->bindings[$abstract] = [
-            'concrete' => $instance,
-            'shared' => true,
-        ];
-    }
+		string $abstract,
+		mixed $instance
+	): void {
+		$this->instances[$abstract] = $instance;
+	}
 
     public function make(
     string $abstract
@@ -120,8 +117,9 @@ final class Container implements ContainerInterface
 	}
 
     public function has(
-        string $abstract
-    ): bool {
-        return isset($this->bindings[$abstract]);
-    }
+		string $abstract
+	): bool {
+		return isset($this->bindings[$abstract])
+			|| isset($this->instances[$abstract]);
+	}
 }
