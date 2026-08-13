@@ -46,12 +46,33 @@ final class Container implements ContainerInterface
         return $this->instances[$abstract];
     }
 
-    $concrete = $this->bindings[$abstract]['concrete']
-        ?? $abstract;
+    $hasBinding = isset($this->bindings[$abstract]);
+
+	$concrete = $hasBinding
+		? $this->bindings[$abstract]['concrete']
+		: $abstract;
 
     if (is_object($concrete)) {
         return $concrete;
     }
+
+	if (
+		!$hasBinding
+		&& interface_exists($concrete)
+	) {
+		throw new NotFoundException(
+			"No binding found for {$abstract}."
+		);
+	}
+
+	if (
+		!class_exists($concrete)
+		&& !interface_exists($concrete)
+	) {
+		throw new NotFoundException(
+			"No binding found for {$abstract}."
+		);
+	}
 
     $reflection = new \ReflectionClass($concrete);
 
@@ -88,6 +109,16 @@ final class Container implements ContainerInterface
                 . " for {$concrete}."
             );
         }
+		
+		if ($type instanceof \ReflectionUnionType) {
+			$dependencies[] = $this->resolveUnionType(
+				$type,
+				$parameter,
+				$concrete
+			);
+
+			continue;
+		}
 
         if (!$type instanceof \ReflectionNamedType) {
             throw new ContainerException(
@@ -96,10 +127,34 @@ final class Container implements ContainerInterface
                 . " for {$concrete}."
             );
         }
+		
+		if ($type->isBuiltin()) {
+			if ($parameter->isDefaultValueAvailable()) {
+				$dependencies[] = $parameter->getDefaultValue();
+
+				continue;
+			}
+
+			throw new ContainerException(
+				"Unable to resolve primitive dependency \$"
+				. $parameter->getName()
+				. " for {$concrete}."
+			);
+		}
 
         $dependency = $type->getName();
 
-        $dependencies[] = $this->make($dependency);
+		try {
+			$dependencies[] = $this->make($dependency);
+		} catch (NotFoundException $exception) {
+			if ($parameter->isDefaultValueAvailable()) {
+				$dependencies[] = $parameter->getDefaultValue();
+
+				continue;
+			}
+
+			throw $exception;
+		}
     }
 
     $instance = $reflection->newInstanceArgs(
@@ -114,6 +169,50 @@ final class Container implements ContainerInterface
     }
 
     return $instance;
+	}
+	
+	private function resolveUnionType(
+		\ReflectionUnionType $type,
+		\ReflectionParameter $parameter,
+		string $concrete
+	): mixed {
+		$resolved = [];
+
+		foreach ($type->getTypes() as $candidate) {
+			if (!$candidate instanceof \ReflectionNamedType) {
+				continue;
+			}
+
+			if ($candidate->isBuiltin()) {
+				continue;
+			}
+
+			try {
+				$resolved[] = $this->make(
+					$candidate->getName()
+				);
+			} catch (NotFoundException) {
+				continue;
+			}
+		}
+
+		if (count($resolved) === 1) {
+			return $resolved[0];
+		}
+
+		if (count($resolved) > 1) {
+			throw new ContainerException(
+				"Unable to resolve union dependency \$"
+				. $parameter->getName()
+				. " for {$concrete}: multiple candidates are available."
+			);
+		}
+
+		throw new ContainerException(
+			"Unable to resolve union dependency \$"
+			. $parameter->getName()
+			. " for {$concrete}: no candidate is available."
+		);
 	}
 
     public function has(
